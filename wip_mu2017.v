@@ -4,7 +4,7 @@ Require Classical.
 Require Import ssreflect ssrmatching ssrfun ssrbool.
 From mathcomp Require Import eqtype ssrnat seq choice fintype tuple.
 Require Import ZArith.
-Require Import ssrZ monad state_monad example_nqueens.
+Require Import monad state_monad example_nqueens.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

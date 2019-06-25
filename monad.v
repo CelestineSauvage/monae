@@ -508,28 +508,6 @@ Qed.
 
 End from_join_laws_to_bind_laws.
 
-Section join_laws.
-Context {M : Type -> Type}.
-Variable (j : forall A, M (M A) -> M A).
-Variable (m : forall A B, (A -> B) -> M A -> M B).
-Variable (r : forall {A}, A -> M A).
-Arguments j {A}.
-Arguments m {A B}.
-Arguments r {A}.
-
-Definition join_left_unit := forall A, j \o r = id :> (M A -> M A).
-
-Definition join_right_unit := forall A, j \o m r = id :> (M A -> M A).
-
-Definition join_associativity :=
-  forall A, j \o m j = j \o j :> (M (M (M A)) -> M A).
-
-(* join commutes with fmap *)
-Definition join_fmap_commutativity :=
-  forall A B (f : A -> B), m f \o j = j \o m (m f) :> (M (M A) -> M B).
-
-End join_laws.
-
 Module Monad.
 Record mixin_of (M : functor) : Type := Mixin {
   ret : forall A, A -> M A ;
@@ -829,35 +807,6 @@ End fmap_and_join.
 Notation "f (o) g" := (fcomp f g) : mu_scope.
 Arguments fcomp : simpl never.
 Notation "m >=> n" := (kleisli m n).
-
-(*
-(* monads on Type are strong monads *)
-Section strength.
-Variable M : monad.
-Definition strength A B (xy : (A * M B)%type) : M (A * B)%type :=
-  let (x,my) := xy in my >>= (fun y => Ret (x,y)).
-Lemma strengthE A B (x:A) (my:M B) : strength (x,my) = my >>= (fun y => Ret (x,y)).
-Proof. done. Qed.
-Lemma strength_unit A : snd = M # snd \o strength (A:=unit) (B:=A).
-Proof.
-apply functional_extensionality => x.
-case: x => i ma.
-rewrite compE strengthE.
-rewrite -fmapE fmap_bind fcomp_def.
-rewrite bindE.
-have ->: Join ((M # (M # snd \o (fun y : A => Ret (i, y)))) ma) =
-((M # snd \o Join) \o M # (fun y : A => Ret (i, y))) ma
-  by rewrite functor_o join_naturality.
-rewrite functor_o.
-have ->: ((M # snd \o Join) \o (M # Ret \o M # pair i)) ma =
-(M # snd \o (Join \o M # Ret) \o M # pair i) ma by done.
-rewrite joinMret compfid.
-rewrite -functor_o.
-have ->: snd \o pair i = id by done.
-by rewrite functor_id.
-Qed.
-End strength.
-*)
 
 Definition mpair {M : monad} {A} (xy : (M A * M A)%type) : M (A * A)%type :=
   let (mx, my) := xy in
