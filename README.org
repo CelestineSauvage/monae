@@ -35,16 +35,24 @@ Other reference:
 - [[wip_netys2017.v][wip_netys2017.v]]
 - [[wip_share.v][wip_share.v]]
 
+** License
+
+GNU GPLv3
+
 ** Requirements
 
-- [[https://coq.inria.fr][Coq]] 8.9.0
-- [[https://github.com/math-comp/math-comp][Mathematical Components library]] 1.8.0
-- [[https://github.com/math-comp/analysis][MathComp-Analysis]] github master version
-  which requires
-  + [[https://github.com/math-comp/bigenough/][bigenough]] first release
-  + [[https://github.com/math-comp/finmap][finmap]] 1.2.0
+- [[https://coq.inria.fr][Coq]] 8.9.1
+- [[https://github.com/math-comp/math-comp][Mathematical Components library]] 1.9.0
 - [[https://github.com/affeldt-aist/infotheo][infotheo]] github master version
+  + with requires [[https://github.com/math-comp/analysis][MathComp-Analysis]] 0.2.2
+    * which requires
+      - [[https://github.com/math-comp/bigenough/][bigenough]] first release
+      - [[https://github.com/math-comp/finmap][finmap]] 1.2.1
+
+All versions available from opam (except infotheo that however comes with an opam file).
 
 ** Installation
 
 1. ~make~
+  - ~rm Makefile.coq~ beforehand in case of Coq upgrade
+
