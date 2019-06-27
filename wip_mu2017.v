@@ -122,11 +122,10 @@ Reserved Notation "n <=< m" (at level 50).
 Section tmp.
 Variable M : monad.
 Definition rbind A B (f : A -> M B) (m : M A) : M B := m >>= f.
-Definition rkleisli A B C (f : A -> M B) (g : B -> M C) : A -> M C := g >=> f.
 End tmp.
 Notation "f ($) m" := (fmap f m) : mu_scope.
 Notation "f =<< m" := (rbind f m) : mu_scope.
-Notation "n <=< m" := (rkleisli n m) : mu_scope.
+Notation "n <=< m" := (m >=> n) : mu_scope.
 
 (* actually a specialization of section 4.4 of mu2017,
    to a seeding function returning lists *)
@@ -150,7 +149,7 @@ Hypothesis Hseed : bassert_size f.
 
 Notation unfoldM := (unfoldM (@well_founded_size _)).
 
-Lemma base_case e y : p y -> (foldr op (Ret e) >=> unfoldM p f) y = Ret e.
+Lemma base_case e y : p y -> (foldr op (Ret e) <=< unfoldM p f) y = Ret e.
 Proof.
 move=> py.
 transitivity (foldr op (Ret e) =<< Ret [::]).
@@ -161,8 +160,8 @@ Qed.
 Lemma inductive_case e y :
   (forall x m, op x m = do x0 <- m; (op x \o Ret) x0) ->
   ~~ p y ->
-  (foldr op (Ret e) >=> unfoldM p f) y =
-  do xz <- f y; op xz.1 ((foldr op (Ret e) >=> unfoldM p f) xz.2).
+  (foldr op (Ret e) <=< unfoldM p f) y =
+  do xz <- f y; op xz.1 ((foldr op (Ret e) <=< unfoldM p f) xz.2).
 Proof.
 move=> H1 py.
 transitivity (unfoldM p f y >>= foldr op (Ret e)).
@@ -172,13 +171,13 @@ transitivity (f y >>= (fun xz => cons xz.1 ($) unfoldM p f xz.2) >>= foldr op (R
 transitivity (f y >>= (fun xz => unfoldM p f xz.2 >>= (fun xs => op xz.1 (foldr op (Ret e) xs)))).
   rewrite bindA.
   by rewrite_ bind_fmap.
-transitivity (do xz <- f y; unfoldM p f xz.2 >>= (foldr op (Ret e) <=< (op xz.1 \o Ret))).
+transitivity (do xz <- f y; unfoldM p f xz.2 >>= (foldr op (Ret e) >=> (op xz.1 \o Ret))).
   bind_ext => ba.
   bind_ext => xs.
   set h := foldr _ _.
   transitivity (h xs >>= (op ba.1 \o Ret)).
     by rewrite H1.
-  by rewrite /= /rkleisli /= /kleisli /= join_fmap.
+  by rewrite /= /kleisli (* TODO: dont' unfold *) /= join_fmap.
 transitivity (do xz <- f y; unfoldM p f xz.2 >>= foldr op (Ret e) >>= (op xz.1 \o Ret)).
   bind_ext => ba.
   by rewrite bind_kleisli !bindA.
@@ -189,7 +188,7 @@ by bind_ext => ba.
 Qed.
 
 Lemma theorem_42 : (forall x m, op x m = m >>= (op x \o Ret)) ->
-  forall e, (foldr op (Ret e) >=> unfoldM p f) =1 hyloM op e p f _ (@well_founded_size _).
+  forall e, (foldr op (Ret e) <=< unfoldM p f) =1 hyloM op e p f _ (@well_founded_size _).
 Proof.
 move=> H1 e.
 apply: (well_founded_induction (@well_founded_size _)) => y IH.
