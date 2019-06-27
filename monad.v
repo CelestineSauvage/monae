@@ -807,7 +807,6 @@ End fmap_and_join.
 Notation "f (o) g" := (fcomp f g) : mu_scope.
 Arguments fcomp : simpl never.
 Notation "m >=> n" := (kleisli n m).
-Notation "m <=< n" := (kleisli m n).
 
 (*
 (* monads on Type are strong monads *)
