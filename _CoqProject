@@ -10,7 +10,6 @@ monad_composition.v
 model.v
 monad_model.v
 proba_monad_model.v
-altprob_model.v
 example_spark.v
 example_nqueens.v
 example_relabeling.v
@@ -18,4 +17,7 @@ example_monty.v
 smallstep.v
 smallstep_monad.v
 smallstep_examples.v
--R . monad
+wip_mu2017.v
+wip_netys2017.v
+wip_share.v
+-R . monae

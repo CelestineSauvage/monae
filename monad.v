@@ -807,6 +807,38 @@ End fmap_and_join.
 Notation "f (o) g" := (fcomp f g) : mu_scope.
 Arguments fcomp : simpl never.
 Notation "m >=> n" := (kleisli n m).
+<<<<<<< HEAD
+=======
+
+(*
+(* monads on Type are strong monads *)
+Section strength.
+Variable M : monad.
+Definition strength A B (xy : (A * M B)%type) : M (A * B)%type :=
+  let (x,my) := xy in my >>= (fun y => Ret (x,y)).
+Lemma strengthE A B (x:A) (my:M B) : strength (x,my) = my >>= (fun y => Ret (x,y)).
+Proof. done. Qed.
+Lemma strength_unit A : snd = M # snd \o strength (A:=unit) (B:=A).
+Proof.
+apply functional_extensionality => x.
+case: x => i ma.
+rewrite compE strengthE.
+rewrite -fmapE fmap_bind fcomp_def.
+rewrite bindE.
+have ->: Join ((M # (M # snd \o (fun y : A => Ret (i, y)))) ma) =
+((M # snd \o Join) \o M # (fun y : A => Ret (i, y))) ma
+  by rewrite functor_o join_naturality.
+rewrite functor_o.
+have ->: ((M # snd \o Join) \o (M # Ret \o M # pair i)) ma =
+(M # snd \o (Join \o M # Ret) \o M # pair i) ma by done.
+rewrite joinMret compfid.
+rewrite -functor_o.
+have ->: snd \o pair i = id by done.
+by rewrite functor_id.
+Qed.
+End strength.
+*)
+>>>>>>> origin/master
 
 Definition mpair {M : monad} {A} (xy : (M A * M A)%type) : M (A * A)%type :=
   let (mx, my) := xy in
