@@ -8,7 +8,7 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-(* from mu2017 *)
+(* mu2019tr2 *)
 
 Section spark_aggregation.
 Local Open Scope mu_scope.
@@ -37,9 +37,10 @@ Section foldl_perm_deterministic.
 Variable M : altCIMonad.
 Variables (A B : Type) (op : B -> A -> B) (b : B).
 Local Notation "x (.) y" := (op x y) (at level 11).
-Hypothesis opP : forall (x y : A) (w : seq A), (foldl op b w (.) x) (.) y = (foldl op b w (.) y) (.) x.
+Hypothesis opP : forall (x y : A) (w : seq A),
+  (foldl op b w (.) x) (.) y = (foldl op b w (.) y) (.) x.
 
-Lemma lemma_35 a :
+Lemma lemma32 a :
   foldl op b (o) insert a = Ret \o foldl op b \o (rcons^~ a) :> (_ -> M _).
 Proof.
 rewrite funeqE; elim/last_ind => [/=|xs y IH].
@@ -74,7 +75,7 @@ Variables (A B : Type) (op : B -> A -> B).
 Local Notation "x (.) y" := (op x y) (at level 11).
 Hypothesis opP : forall (x y : A) (w : B), (w (.) x) (.) y = (w (.) y) (.) x.
 
-Lemma lemma_34 b : foldl op b (o) perm = Ret \o foldl op b :> (_ -> M _).
+Lemma lemma31 b : foldl op b (o) perm = Ret \o foldl op b :> (_ -> M _).
 Proof.
 rewrite funeqE => xs; move: xs b; elim => [/=|x xs IH] b.
   by rewrite fcompE fmapE bindretf.
@@ -82,7 +83,7 @@ rewrite fcompE fmap_bind.
 have opP' : forall (x y : A) (w : seq A), (foldl op b w (.) x) (.) y = (foldl op b w (.) y) (.) x.
   move=> ? ? ?.
   by rewrite opP.
-rewrite_ (lemma_35 M opP').
+rewrite_ (lemma32 M opP').
 transitivity ((Ret \o foldl op (b (.) x)) xs : M _); last by [].
 rewrite -IH.
 rewrite [in RHS]fcompE.
@@ -98,24 +99,80 @@ Qed.
 
 End foldl_perm_deterministic_contd.
 
-Section theorem36.
+Section theorem43.
 Variable M : altCIMonad.
 Variables (A B : Type) (b : B) (mul : B -> A -> B) (add : B -> B -> B).
 Hypotheses (addA : associative add) (addC : commutative add).
 
-(* theorem 4.5 in mu2019tr2, see also netys2017 *)
+(* theorem 4.3 *)
 Lemma aggregateE :
   aggregate b mul add = Ret \o foldl add b \o map (foldl mul b) :> (_ -> M _).
 Proof.
 (* NB: mu2017 is using perm_map (lemma 3.1) and (7) but that does not seem useful*)
-rewrite -lemma_34; last by move=> x ??; rewrite -addA (addC x) addA.
+rewrite -lemma31; last by move=> x ??; rewrite -addA (addC x) addA.
 by rewrite /aggregate 2!fcomp_def -compA.
 Qed.
 
 Lemma deter_aggregate : deterministic (aggregate b mul add : _ -> M _).
 Proof. rewrite /deterministic aggregateE //; eexists; reflexivity. Qed.
 
-End theorem36.
+End theorem43.
+
+Section homomorphism.
+Variables (A B : Type) (add : B -> B -> B) (k : A -> B) (z : B).
+Hypotheses (addA : associative add) (add0z : left_id z add).
+Definition is_hom (h : seq A -> B) :=
+  h nil = z /\ (forall x : A, h [:: x] = k x) /\
+  (forall xs ys, h (xs ++ ys) = add (h xs) (h ys)).
+End homomorphism.
+
+Section theorem47.
+Variable M : altCIMonad.
+Variables (A B : Type) (b : B) (mul : B -> A -> B) (add : B -> B -> B).
+
+Lemma perm_is_alt_ret xs : exists m : M (seq A), perm xs = Ret xs [~] m.
+Proof.
+Admitted.
+
+(* TODO(rei): integrate this into a (new?) monad *)
+Hypothesis idempotent_converse :
+  forall C m1 m2 x, m1 [~] m2 = Ret x :> M C -> m1 = Ret x /\ m2 = Ret x.
+Hypothesis injective_return : forall C x1 x2,
+  Ret x1 = Ret x2 :> M C -> x1 = x2.
+
+Lemma lemma45 (xss yss : seq (seq A)) (m : M _):
+  aggregate b mul add = Ret \o foldl mul b \o flatten :> (_ -> M _) ->
+  perm xss = Ret yss [~] m ->
+  let x := foldl add b (map (foldl mul b) xss) in
+  foldl mul b (flatten xss) = x /\
+  x = foldr add b (map (foldl mul b) yss).
+Proof.
+move=> H1 H2 x.
+have step1 : (Ret \o foldl mul b \o flatten) xss =
+  (Ret \o foldl add b \o map (foldl mul b)) yss [~]
+  fmap (foldl add b \o map (foldl mul b)) m.
+  rewrite -H1 /aggregate perm_o_map -fcomp_comp.
+  by rewrite fcompE H2 alt_fmapDl fmapE /= bindretf.
+have step2 : (foldl mul b \o flatten) xss =
+             (foldl add b \o map (foldl mul b)) yss.
+  apply esym, idempotent_converse in step1.
+  case: step1 => step11 step12.
+  apply injective_return in step11.
+  by rewrite compE -step11.
+Abort.
+
+Lemma theorem47 :
+ aggregate b mul add = Ret \o foldl mul b \o flatten :> (_ -> M _) ->
+ is_hom add (mul b) b (foldl mul b).
+Proof.
+move=> H.
+split; first by [].
+split; first by [].
+move=> xs ys.
+rewrite (_ : xs ++ ys = flatten [:: xs; ys]); last by rewrite /= cats0.
+Abort.
+
+End theorem47.
 
 End aggregate_deterministic.
 

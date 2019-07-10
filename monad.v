@@ -1224,7 +1224,7 @@ Qed.
 
 End subsequences_of_a_list.
 
-(* mu2017, Sect. 3.1 *)
+(* mu2019tr2, Sect. 3 *)
 Section permutation_and_insertion.
 
 Variable M : altMonad.
@@ -1259,8 +1259,8 @@ rewrite -fmap_comp (_ : map f \o cons y = cons (f y) \o map f) //.
 by rewrite fmap_comp -(fcompE (map f)) -IH [RHS]/= insertE.
 Qed.
 
-(* see also netys2017 *)
-Lemma perm_map A B (f : A -> B) :
+(* lemma 3.3 in mu2019tr2 *)
+Lemma perm_o_map A B (f : A -> B) :
   perm \o map f = map f (o) perm :> (seq A -> M (seq B)).
 Proof.
 rewrite funeqE; elim => [/=|x xs IH].
