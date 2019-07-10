@@ -126,13 +126,14 @@ Definition is_hom (h : seq A -> B) :=
   (forall xs ys, h (xs ++ ys) = add (h xs) (h ys)).
 End homomorphism.
 
-Section theorem47.
-Variable M : altCIMonad.
-Variables (A B : Type) (b : B) (mul : B -> A -> B) (add : B -> B -> B).
+Section lemma45.
 
-Lemma perm_is_alt_ret xs : exists m : M (seq A), perm xs = Ret xs [~] m.
+Lemma perm_is_alt_ret (M : nondetMonad) C xs : exists m : M (seq C), perm xs = Ret xs [~] m.
 Proof.
 Admitted.
+
+Variable M : nondetMonad.
+Variables (A B : Type) (b : B) (mul : B -> A -> B) (add : B -> B -> B).
 
 (* TODO(rei): integrate this into a (new?) monad *)
 Hypothesis idempotent_converse :
@@ -140,14 +141,31 @@ Hypothesis idempotent_converse :
 Hypothesis injective_return : forall C x1 x2,
   Ret x1 = Ret x2 :> M C -> x1 = x2.
 
-Lemma lemma45 (xss yss : seq (seq A)) (m : M _):
+Lemma lemma45a :
   aggregate b mul add = Ret \o foldl mul b \o flatten :> (_ -> M _) ->
-  perm xss = Ret yss [~] m ->
-  let x := foldl add b (map (foldl mul b) xss) in
-  foldl mul b (flatten xss) = x /\
-  x = foldr add b (map (foldl mul b) yss).
+  forall xss : seq (seq A),
+  foldl mul b (flatten xss) = foldl add b (map (foldl mul b) xss).
 Proof.
-move=> H1 H2 x.
+move=> H1 xss.
+case: (perm_is_alt_ret M xss) => m Hm.
+have step1 : (Ret \o foldl mul b \o flatten) xss =
+  (Ret \o foldl add b \o map (foldl mul b)) xss [~]
+  fmap (foldl add b \o map (foldl mul b)) m.
+  rewrite -H1 /aggregate perm_o_map -fcomp_comp.
+  by rewrite fcompE Hm alt_fmapDl fmapE /= bindretf.
+apply esym, idempotent_converse in step1.
+case: step1 => step11 step12.
+apply injective_return in step11.
+by rewrite -step11.
+Qed.
+
+Lemma lemma45b (m : M _) :
+  aggregate b mul add = Ret \o foldl mul b \o flatten :> (_ -> M _) ->
+  forall xss yss : seq (seq A),
+  perm xss = Ret yss [~] m ->
+  foldl add b (map (foldl mul b) xss) = foldl add b (map (foldl mul b) yss).
+Proof.
+move=> H1 xss yss H2.
 have step1 : (Ret \o foldl mul b \o flatten) xss =
   (Ret \o foldl add b \o map (foldl mul b)) yss [~]
   fmap (foldl add b \o map (foldl mul b)) m.
@@ -159,6 +177,79 @@ have step2 : (foldl mul b \o flatten) xss =
   case: step1 => step11 step12.
   apply injective_return in step11.
   by rewrite compE -step11.
+by rewrite -lemma45a.
+Qed.
+
+End lemma45.
+
+Section theorem47.
+Variable M : nondetMonad.
+Variables (A B : Type) (b : B) (mul : B -> A -> B) (add : B -> B -> B).
+
+(* TODO(rei): integrate this into a (new?) monad *)
+Hypothesis idempotent_converse :
+  forall C m1 m2 x, m1 [~] m2 = Ret x :> M C -> m1 = Ret x /\ m2 = Ret x.
+Hypothesis injective_return : forall C x1 x2,
+  Ret x1 = Ret x2 :> M C -> x1 = x2.
+
+Lemma theorem46lid z zs : z = foldl mul b zs ->
+ aggregate b mul add = Ret \o foldl mul b \o flatten :> (_ -> M _) ->
+z = add b z.
+Proof.
+move=> zzs H.
+transitivity (foldl mul b (flatten [:: zs])).
+  by rewrite /= cats0.
+transitivity (foldl add b (map (foldl mul b) [:: zs])).
+  have Hm : perm [:: zs] = Ret [:: zs] [~] (@Fail M _).
+    by rewrite /= bindretf insertE altmfail.
+  by rewrite (lemma45a idempotent_converse injective_return H).
+by rewrite /= -zzs.
+Qed.
+
+Lemma theorem46rid z zs : z = foldl mul b zs ->
+ aggregate b mul add = Ret \o foldl mul b \o flatten :> (_ -> M _) ->
+ z = add z b.
+Proof.
+move=> zzs H.
+transitivity (foldl mul b (flatten [:: zs; [::]])).
+  by rewrite /= cats0.
+transitivity (foldl add b (map (foldl mul b) [:: zs; [::]])).
+  have [m Hm] : exists m : M _, perm [:: zs; [::]] = Ret [:: zs; [::]] [~] m.
+    exact: perm_is_alt_ret.
+  by rewrite (lemma45a idempotent_converse injective_return H).
+rewrite /= -zzs.
+by rewrite -(@theorem46lid _ zs).
+Qed.
+
+Lemma theorem46C x xs y ys :
+ x = foldl mul b xs -> y = foldl mul b ys ->
+ aggregate b mul add = Ret \o foldl mul b \o flatten :> (_ -> M _) ->
+ add x y = add y x.
+Proof.
+move=> xxs yys.
+transitivity (add x (add y b)).
+  by rewrite -(@theorem46rid _ ys).
+transitivity (foldl add b (map (foldl mul b) [:: xs; ys])).
+  rewrite /=.
+  rewrite -xxs -yys.
+  rewrite -(@theorem46rid _ ys) //.
+  by rewrite -(@theorem46lid _ xs) //.
+transitivity (foldl add b (map (foldl mul b) [:: ys; xs])).
+  have [m Hm] : exists m : M _, perm [:: xs; ys] = Ret [:: ys; xs] [~] m.
+    admit.
+  by rewrite (lemma45b idempotent_converse injective_return H Hm).
+by rewrite /= -xxs -yys -(@theorem46lid _ ys).
+Admitted.
+
+Lemma theorem46A x xs y ys z zs :
+  x = foldl mul b xs -> y = foldl mul b ys -> z = foldl mul b zs ->
+  aggregate b mul add = Ret \o foldl mul b \o flatten :> (_ -> M _) ->
+  add x (add y z) = add (add x y) z.
+Proof.
+move=> xxs yys zzs H.
+rewrite {1}(theorem46rid zzs) //.
+transitivity (foldl add b (map (foldl mul b) [:: xs; ys; zs])).
+  rewrite /= -xxs -yys -zzs.
 Abort.
 
 Lemma theorem47 :
@@ -170,7 +261,13 @@ split; first by [].
 split; first by [].
 move=> xs ys.
 rewrite (_ : xs ++ ys = flatten [:: xs; ys]); last by rewrite /= cats0.
-Abort.
+transitivity (foldl add b (map (foldl mul b) [:: xs; ys])).
+  case: (perm_is_alt_ret M [:: xs; ys]) => m Hm.
+  by rewrite (lemma45a idempotent_converse injective_return H).
+transitivity (add (foldl mul b xs) (add (foldl mul b ys) b)).
+  by rewrite /= -(@theorem46lid _ xs) // -(@theorem46rid _ ys).
+by rewrite -(@theorem46rid _ ys).
+Qed.
 
 End theorem47.
 
