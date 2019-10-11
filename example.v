@@ -198,14 +198,16 @@ Variable S : Type.
 
 Definition opTState := eexceptionMonadMx (stateT S M).
 
-Lemma stateMonad_of_stateT : MonadState.class_of S (stateT S M).
+(* Lemma stateMonad_of_stateT : MonadState.class_of S (stateT S M).
 Proof.
 Check retS.
 refine (@MonadState.Class _ _ _ (@MonadState.Mixin _ (stateT S M) (fun s => Ret (s, s)) (fun s' _ => Ret (tt, s')) _ _ _ _)).
 Admitted.
 
+Canonical stateMonad_of_stateT' S M := MonadState.Pack (stateMonad_of_stateT S M). *)
+
 Definition getOpt : opTState S :=
-  liftMx (@get _ _).
+  liftMx (@Get S (stateT S)).
 
 Definition putOpt(x : S) : opTState unit :=
   liftMx (put M x).

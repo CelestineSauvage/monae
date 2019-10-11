@@ -704,6 +704,10 @@ Program Definition get_aop S : aoperation (StateOps.get_fun S) (ModelMonad.State
 Lemma algebraic_put S : algebraicity (@StateOps.put_op S).
 Proof. by move=> ? ? ? []. Qed.
 
+Program Definition put_aop S : aoperation (StateOps.put_fun S) (ModelMonad.State.t S) :=
+  AOperation.Pack ((*AOperation.Class _*) (AOperation.Mixin (@algebraic_put S))).
+(*Next Obligation. by []. Qed.*)
+
 Lemma algebraicity_callcc r : algebraicity (ContOps.acallcc_op r).
 Proof. by []. Qed.
 
@@ -864,7 +868,15 @@ Let erZ : monadT := errorT Z.
 Let lift_getX : (StateOps.get_fun S) \O (erZ M) ~~> (erZ M) :=
   alifting (get_aop S) (LiftT erZ M).
 
+Let lift_putX : (StateOps.put_fun S) \O (erZ M) ~~> (erZ M) :=
+  alifting (put_aop S) (LiftT erZ M).
+
 Goal forall X (k : S -> erZ M X), lift_getX k = StateOps.get k :> erZ M X.
+move=> X0 k.
+by rewrite /lift_getX aliftingE.
+Abort.
+
+Goal forall X (k : S -> erZ M X), lift_putX k = StateOps.put k :> erZ M X.
 move=> X0 k.
 by rewrite /lift_getX aliftingE.
 Abort.
@@ -902,3 +914,67 @@ Proof. by rewrite /lift_acallccS aliftingE. Qed.
 End continuation_stateT.
 
 End examples_of_lifting.
+
+Section examples_of_programs1.
+
+Lemma stateMonad_of_stateT S (M : monad) : MonadState.class_of S (stateT S M).
+Proof.
+Check retS.
+refine (@MonadState.Class _ _ _ (@MonadState.Mixin _ (stateT S M) (fun s => Ret (s, s)) (fun s' _ => Ret (tt, s')) _ _ _ _)).
+move=> s s'.
+rewrite boolp.funeqE => s0.
+case: M => m [[f fi fo] [/= r j a b c]].
+rewrite /Bind /Join /JOIN /estateMonadM /Monad_of_ret_bind /bindS /Fun /=.
+rewrite /Monad_of_ret_bind.Map bindretf /=.
+by rewrite /retS bindretf.
+move=> s.
+rewrite boolp.funeqE => s0.
+case: M => m [[f fi fo] [/= r j a b c]].
+rewrite /retS /Ret /RET /Bind /estateMonadM /Monad_of_ret_bind /Fun /bindS /=.
+rewrite /Monad_of_ret_bind.Map.
+by rewrite 4!bindretf /=.
+rewrite boolp.funeqE => s.
+case: M => m [[f fi fo] [/= r j a b c]].
+rewrite /Bind /Join /JOIN /=.
+rewrite /estateMonadM /Monad_of_ret_bind /bindS /Fun /=.
+rewrite /Monad_of_ret_bind.Map bindretf /=.
+by rewrite /retS bindretf.
+case: M => m [[f fi fo] [/= r j a b c]].
+move=> A k.
+rewrite boolp.funeqE => s.
+rewrite /Bind /Join /JOIN /= /bindS /estateMonadM /=.
+rewrite /Monad_of_ret_bind /Fun /Monad_of_ret_bind.Map /=.
+rewrite /Monad_of_ret_bind.Map /= /bindS /=.
+by rewrite !bindretf /= !bindretf.
+Qed.
+
+Canonical stateMonad_of_stateT' S M := MonadState.Pack (stateMonad_of_stateT S M).
+
+Variable M : failMonad.
+Let N := stateT nat M.
+Let incr : N unit := Get >>= (Put \o (fun i => i.+1)).
+Let prog := incr >> (liftS Fail : N nat) >> incr.
+
+End examples_of_programs1.
+
+Section examples_of_programs2.
+
+Definition optionT := errorT unit.
+Definition liftO := liftX unit.
+
+Lemma failMonad_of_ (M : monad) : MonadFail.class_of (optionT M).
+Proof.
+refine (@MonadFail.Class _ _ (@MonadFail.Mixin (optionT M) (fun B => Ret (@inl _ B tt))  _ )).
+Admitted.
+
+Canonical failMonad_of_' M := MonadFail.Pack (failMonad_of_ M).
+
+Variable M : stateMonad nat.
+Let N := optionT M.
+Check (fun s => liftO (Put s)).
+Definition GetO := liftO (@Get nat M).
+Definition PutO := (fun s => liftO (@Put nat M s)).
+Let incr : N unit := GetO >>= (PutO \o (fun i => i.+1)).
+Let prog : N unit := incr >> (Fail : N nat) >> incr.
+
+End examples_of_programs2.
