@@ -3,7 +3,7 @@ From mathcomp Require Import finmap.
 From mathcomp Require boolp.
 From mathcomp Require Import classical_sets.
 From infotheo Require convex_choice classical_sets_ext.
-Require Import monae_lib monad fail_monad state_monad trace_monad monad_transformer monad_model.
+Require Import monae_lib monad state_monad fail_monad monad_transformer.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -12,6 +12,25 @@ Unset Printing Implicit Defensive.
 Local Open Scope monae_scope.
 
 Local Notation "f ∘ g" := (fun x => f (g x)) (at level 40, left associativity).
+
+Section fastproduct.
+
+Definition product := foldr muln 1.
+
+Lemma product0 s : O \in s -> product s = O.
+Proof.
+elim: s => //= h t ih; rewrite inE => /orP[/eqP <-|/ih ->];
+  by rewrite ?muln0 ?mul0n.
+Qed.
+
+Section work.
+Variable F : failMonad.
+Local Open Scope mprog.
+
+Check fun s => product s.
+
+Definition work s : F nat :=
+  if 0 \in s then Fail else Ret (product s).
 
 Module MonadStateInt.
   Record mixin_of (M : stateMonad nat) : Type := Mixin {
@@ -213,6 +232,18 @@ Definition putOpt(x : S) : opTState unit :=
   liftMx (Put x).
 
 End MonadFail2.
+
+Definition work2 s : M nat :=
+  if O \in s then Fail else Ret (product s).
+
+Definition work s : M nat :=
+  if O \in s then Fail else Ret (product s).
+
+Program Definition work (M : failMonad) (s : seq nat) : M nat :=
+If O in s then _ else _.
+
+Definition work (M : failMonad) (s : _) : M nat := if O \in s then Fail else Ret (product s).
+Definition fastprod (M : exceptMonad) s : M nat := Catch (work s) (Ret O)
 
 (* Local Obligation Tactic := by []. *)
 

@@ -861,10 +861,11 @@ End theorem19.
 Section examples_of_lifting.
 
 Section state_errorT.
-Variable (S Z : Type).
+Variable (S : Type).
 Let M : monad := ModelState.state S.
-Let erZ : monadT := errorT Z.
+Let erZ : monadT := errorT unit.
 
+(* needful ? *)
 Let lift_getX : (StateOps.get_fun S) \O (erZ M) ~~> (erZ M) :=
   alifting (get_aop S) (LiftT erZ M).
 
@@ -876,18 +877,14 @@ move=> X0 k.
 by rewrite /lift_getX aliftingE.
 Abort.
 
-Check lift_putX.
-Print StateOps.put_fun.
-Print StateOps.put_acto.
-
-(* Goal forall X (k : _), @lift_putX X k = StateOps.put _ _.
-move=> X0 k.
-by rewrite /lift_getX aliftingE.
-Abort. *)
-
-Goal lift_getX Ret = @liftX  _ _ _ (@ModelState.get S).
+Goal alifting (get_aop S) (LiftT erZ M) Ret = @liftX  _ _ _ (@ModelState.get S).
 Proof.
 by rewrite /lift_getX aliftingE.
+Abort.
+
+Goal (fun s' => (lift_putX (s', Ret tt))) = fun s => (@liftX _ _ _ (@ModelState.put S s)).
+Proof.
+by rewrite/lift_putX aliftingE.
 Abort.
 
 End state_errorT.
@@ -981,3 +978,38 @@ Let incr : N unit := GetO >>= (PutO \o (fun i => i.+1)).
 Let prog : N unit := incr >> (Fail : N nat) >> incr.
 
 End examples_of_programs2.
+
+Section lifting_uniform.
+
+Definition M S: monad := ModelState.state S.
+Let optT : monadT := errorT unit.
+
+(* needful ? *)
+Definition lift_getX S : (StateOps.get_fun S) \O (optT (M S)) ~~> (optT (M S)) :=
+  alifting (get_aop S) (LiftT optT (M S)).
+
+Let lift_putX S : (StateOps.put_fun S) \O (optT (M S)) ~~> (optT (M S)) :=
+  alifting (put_aop S) (LiftT optT (M S)).
+
+Let incr : optT (M nat) unit := (lift_getX Ret) >>= (fun i => lift_putX (i.+1, Ret tt)).
+Let prog : optT (M nat) unit:= incr >> (Fail : optT (M nat) unit) >> incr. 
+
+End lifting_uniform.
+
+(* Section examples_of_programs3.
+
+Variable Z S : Type.
+Let M: monad := ModelState.state S.
+Let optT : monadT := errorT unit.
+
+Definition CatchE A (m : opT M) (m' : opT M) : opT M :=
+
+Lemma exceptMonad_of_ (M : monad) : @MonadExcept.Class _
+  (failMonad_of_ M) (@MonadExcept.Mixin _
+    (fun A m m' => if m is inr x then m else m') _ _ _ _).
+Proof.
+refine (@MonadFail.Class _ _ (@MonadFail.Mixin (optionT M) (fun B => Ret (@inl _ B tt))  _ )).
+Admitted.
+
+End examples_of_programes3.
+ *)
