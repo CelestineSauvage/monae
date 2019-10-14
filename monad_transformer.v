@@ -876,10 +876,14 @@ move=> X0 k.
 by rewrite /lift_getX aliftingE.
 Abort.
 
-Goal forall X (k : S -> erZ M X), lift_putX k = StateOps.put k :> erZ M X.
+Check lift_putX.
+Print StateOps.put_fun.
+Print StateOps.put_acto.
+
+(* Goal forall X (k : _), @lift_putX X k = StateOps.put _ _.
 move=> X0 k.
 by rewrite /lift_getX aliftingE.
-Abort.
+Abort. *)
 
 Goal lift_getX Ret = @liftX  _ _ _ (@ModelState.get S).
 Proof.
@@ -971,7 +975,6 @@ Canonical failMonad_of_' M := MonadFail.Pack (failMonad_of_ M).
 
 Variable M : stateMonad nat.
 Let N := optionT M.
-Check (fun s => liftO (Put s)).
 Definition GetO := liftO (@Get nat M).
 Definition PutO := (fun s => liftO (@Put nat M s)).
 Let incr : N unit := GetO >>= (PutO \o (fun i => i.+1)).

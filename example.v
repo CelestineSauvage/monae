@@ -196,7 +196,7 @@ Section MonadFail2.
 Local Notation M := monad_model.ModelMonad.identity.
 Variable S : Type.
 
-Definition opTState := eexceptionMonadMx (stateT S M).
+Definition opTState := eexceptionMonadMx (stateMonad_of_stateT' S M).
 
 (* Lemma stateMonad_of_stateT : MonadState.class_of S (stateT S M).
 Proof.
@@ -207,10 +207,10 @@ Admitted.
 Canonical stateMonad_of_stateT' S M := MonadState.Pack (stateMonad_of_stateT S M). *)
 
 Definition getOpt : opTState S :=
-  liftMx (@Get S (stateT S)).
+  liftMx Get.
 
 Definition putOpt(x : S) : opTState unit :=
-  liftMx (put M x).
+  liftMx (Put x).
 
 End MonadFail2.
 
