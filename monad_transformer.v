@@ -190,6 +190,8 @@ Variables (Z : Type) (* the type of exceptions *) (M : monad).
 
 Definition MX := fun X => M (Z + X)%type.
 
+Check fun X => M (Z + X)%type.
+
 Definition retX X x : MX X := Ret (inr x).
 
 Definition bindX X Y (t : MX X) (f : X -> MX Y) : MX Y :=
@@ -877,15 +879,15 @@ move=> X0 k.
 by rewrite /lift_getX aliftingE.
 Abort.
 
-Goal alifting (get_aop S) (LiftT erZ M) Ret = @liftX  _ _ _ (@ModelState.get S).
+Goal lift_getX Ret = @liftX  _ _ _ (@ModelState.get S).
 Proof.
 by rewrite /lift_getX aliftingE.
-Abort.
+Qed.
 
 Goal (fun s' => (lift_putX (s', Ret tt))) = fun s => (@liftX _ _ _ (@ModelState.put S s)).
 Proof.
 by rewrite/lift_putX aliftingE.
-Abort.
+Qed.
 
 End state_errorT.
 
@@ -960,31 +962,30 @@ End examples_of_programs1.
 
 Section examples_of_programs2.
 
-Definition optionT := errorT unit.
-Definition liftO := liftX unit.
+Let M := ModelState.state nat.
+Definition optionT := errorT unit M.
+Definition liftOpt := liftX unit.
 
-Lemma failMonad_of_ (M : monad) : MonadFail.class_of (optionT M).
+Lemma failMonad_of_ : MonadFail.class_of optionT.
 Proof.
-refine (@MonadFail.Class _ _ (@MonadFail.Mixin (optionT M) (fun B => Ret (@inl _ B tt))  _ )).
-Admitted.
+refine (@MonadFail.Class _ _ (@MonadFail.Mixin optionT (fun B => Ret (@inl _ B tt))  _ )).
+by [].
+Qed.
 
-Canonical failMonad_of_' M := MonadFail.Pack (failMonad_of_ M).
+Canonical failMonad_of_' := MonadFail.Pack failMonad_of_.
 
-Variable M : stateMonad nat.
-Let N := optionT M.
-Definition GetO := liftO (@Get nat M).
-Definition PutO := (fun s => liftO (@Put nat M s)).
-Let incr : N unit := GetO >>= (PutO \o (fun i => i.+1)).
-Let prog : N unit := incr >> (Fail : N nat) >> incr.
+Definition GetO := liftOpt (@Get nat M).
+Definition PutO := (fun s => liftOpt (@Put nat M s)).
+Let incr := GetO >>= (fun i => PutO (i.+1)).
+Let prog := incr >> (Fail : optionT nat) >> incr.
 
 End examples_of_programs2.
 
 Section lifting_uniform.
 
-Definition M S: monad := ModelState.state S.
+Let M S: monad := ModelState.state S.
 Let optT : monadT := errorT unit.
 
-(* needful ? *)
 Definition lift_getX S : (StateOps.get_fun S) \O (optT (M S)) ~~> (optT (M S)) :=
   alifting (get_aop S) (LiftT optT (M S)).
 
@@ -995,21 +996,3 @@ Let incr : optT (M nat) unit := (lift_getX Ret) >>= (fun i => lift_putX (i.+1, R
 Let prog : optT (M nat) unit:= incr >> (Fail : optT (M nat) unit) >> incr. 
 
 End lifting_uniform.
-
-(* Section examples_of_programs3.
-
-Variable Z S : Type.
-Let M: monad := ModelState.state S.
-Let optT : monadT := errorT unit.
-
-Definition CatchE A (m : opT M) (m' : opT M) : opT M :=
-
-Lemma exceptMonad_of_ (M : monad) : @MonadExcept.Class _
-  (failMonad_of_ M) (@MonadExcept.Mixin _
-    (fun A m m' => if m is inr x then m else m') _ _ _ _).
-Proof.
-refine (@MonadFail.Class _ _ (@MonadFail.Mixin (optionT M) (fun B => Ret (@inl _ B tt))  _ )).
-Admitted.
-
-End examples_of_programes3.
- *)
