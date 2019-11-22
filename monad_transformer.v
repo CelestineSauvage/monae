@@ -24,6 +24,7 @@ Require Import monae_lib monad fail_monad.
    - Section theorem19.
      algebraic lifting
    - Section examples_of_lifting.
+   - Section examples_of_programs.
 *)
 
 Set Implicit Arguments.
@@ -36,9 +37,9 @@ Module monadM.
 Section monadm.
 Variables (M N : monad).
 Record class_of (e : M ~~> N) := Class {
-  _ : forall A, @RET _ A = e _ \o Ret;
+  _ : forall A, Ret = e A \o Ret;
   _ : forall A B (m : M A) (f : A -> M B),
-    e _ (m >>= f) = e _ m >>= (fun a => e _ (f a)) }.
+    e B (m >>= f) = e A m >>= (e B \o f) }.
 Structure t := Pack { e : M ~~> N ; class : class_of e }.
 End monadm.
 Module Exports.
@@ -53,7 +54,7 @@ Variables (M N : monad) (f : monadM M N).
 Lemma monadMret : forall A, @RET _ A = f _ \o Ret.
 Proof. by case: f => ? []. Qed.
 Lemma monadMbind A B (m : M A) (h : A -> M B) :
-  f _ (m >>= h) = f _ m >>= (fun a => f _ (h a)).
+  f _ (m >>= h) = f _ m >>= (f _ \o h).
 Proof. by case: f => ? []. Qed.
 End monadM_interface.
 
@@ -65,7 +66,7 @@ move=> A B h; rewrite boolp.funeqE => m /=.
 have <- : Join ((M # (Ret \o h)) m) = (M # h) m.
   by rewrite functor_o [LHS](_ : _ = (Join \o M # Ret) ((M # h) m)) // joinMret.
 move: (@monadMbind M N f A B m (Ret \o h)); rewrite 2!bindE => ->.
-rewrite (_ : (fun a => f _ ((Ret \o h) a)) = Ret \o h); last first.
+rewrite (_ : (f _ \o (Ret \o h)) = Ret \o h); last first.
   by rewrite [in RHS](monadMret f).
 rewrite [RHS](_ : _ = (Join \o (N # Ret \o N # h)) (f _ m)); last first.
   by rewrite compE functor_o.
@@ -78,25 +79,31 @@ Definition natural_of_monadM (M N : monad) (f : monadM M N) : M ~> N :=
 
 Module MonadT.
 Record class_of (T : monad -> monad) := Class {
-  retT : forall M : monad, FId ~~> T M;
-  bindT : forall (M : monad) A B, (T M) A -> (A -> (T M) B) -> (T M) B ;
+(*  retT : forall M : monad, FId ~~> T M;
+  bindT : forall (M : monad) A B, (T M) A -> (A -> (T M) B) -> (T M) B ;*)
   liftT : forall M : monad, monadM M (T M) }.
 Record t := Pack {m : monad -> monad ; class : class_of m}.
 Module Exports.
 Notation monadT := t.
 Coercion m : monadT >-> Funclass.
-Definition RetT (T : t) : forall M : monad, FId ~~> m T M :=
+(*Definition RetT (T : t) : forall M : monad, FId ~~> m T M :=
   let: Pack _ (Class f _ _) := T return forall M : monad, FId ~~> m T M in f.
-Arguments RetT _ _ [A] : simpl never.
+Arguments RetT _ _ : simpl never.
 Definition BindT (T : t) : forall (M : monad) A B, (m T M) A -> (A -> (m T M) B) -> (m T M) B :=
   let: Pack _ (Class _ f _) := T return forall (M : monad) A B, (m T M) A -> (A -> (m T M) B) -> (m T M) B in f.
-Arguments BindT _ _ [A] [B] : simpl never.
+Arguments BindT _ _ [A] [B] : simpl never.*)
 Definition LiftT (T : t) : forall M : monad, monadM M (m T M) :=
-  let: Pack _ (Class _ _ f) := T return forall M : monad, monadM M (m T M) in f.
+  let: Pack _ (Class (*_ _*) f) := T return forall M : monad, monadM M (m T M) in f.
 Arguments LiftT _ _ : simpl never.
 End Exports.
 End MonadT.
 Export MonadT.Exports.
+
+(*Lemma test (T : monadT) : forall M, RetT T M = @RET (T M) :> (_ ~> _).
+Proof.
+move=> M; apply/nattrans_ext => A.
+rewrite boolp.funeqE => F.
+Abort.*)
 
 Section state_monad_transformer.
 
@@ -111,14 +118,8 @@ Definition retS A (a : A) : MS A :=
 
 Definition bindS A B (m : MS A) f := (fun s => m s >>= uncurry f) : MS B.
 
-Definition MS_fmap A B (f : A -> B) (m : MS A) : MS B.
-move=> s.
-rewrite /MS in m.
-move: (m s) => m'.
-Local Open Scope mprog.
-exact: (fmap (fun x => (f x.1, x.2)) m').
-Local Close Scope mprog.
-Defined.
+Definition MS_fmap A B (f : A -> B) (m : MS A) : MS B :=
+  fun s => (M # (fun x => (f x.1, x.2))) (m s).
 
 Definition MS_functor : functor.
 apply: (Functor.Pack (@Functor.Class MS MS_fmap _ _)).
@@ -162,7 +163,7 @@ by rewrite bindA; bind_ext; case.
 Defined.
 
 Definition liftS A (m : M A) : estateMonadM A :=
-  fun s => @Bind M _ _ m (fun x => Ret (x, s)).
+  fun s => m >>= (fun x => Ret (x, s)).
 
 Program Definition stateMonadM : monadM M estateMonadM :=
   monadM.Pack (@monadM.Class _ _ liftS _ _).
@@ -180,7 +181,7 @@ Qed.
 End state_monad_transformer.
 
 Definition stateT S : monadT :=
-  MonadT.Pack (@MonadT.Class (estateMonadM S) (@retS S) (@bindS S) (@stateMonadM S)).
+  MonadT.Pack (@MonadT.Class (estateMonadM S) (*(@retS S) (@bindS S)*) (@stateMonadM S)).
 
 Section exception_monad_transformer.
 
@@ -232,7 +233,8 @@ move=> A B C m f g; rewrite /bindX bindA; bind_ext; case => //.
 by move=> z; rewrite bindretf.
 Qed.
 
-Definition liftX X (m : M X) : eexceptionMonadM X := @Bind M _ _ m (fun x => @RET eexceptionMonadM _ x).
+Definition liftX X (m : M X) : eexceptionMonadM X :=
+  m >>= (fun x => @RET eexceptionMonadM _ x).
 
 Program Definition exceptionMonadM : monadM M eexceptionMonadM :=
   monadM.Pack (@monadM.Class _ _ liftX _ _).
@@ -248,7 +250,7 @@ Qed.
 End exception_monad_transformer.
 
 Definition errorT Z : monadT :=
-  MonadT.Pack (@MonadT.Class (eexceptionMonadM Z) (@retX Z) (@bindX Z) (@exceptionMonadM Z)).
+  MonadT.Pack (@MonadT.Class (eexceptionMonadM Z) (*(@retX Z) (@bindX Z)*) (@exceptionMonadM Z)).
 
 Section continuation_monad_tranformer.
 
@@ -303,7 +305,7 @@ Qed.
 End continuation_monad_tranformer.
 
 Definition contT r : monadT :=
-  MonadT.Pack (@MonadT.Class (econtMonadM r) (@retC r) (@bindC r) (@contMonadM r)).
+  MonadT.Pack (@MonadT.Class (econtMonadM r) (*(@retC r) (@bindC r)*) (@contMonadM r)).
 
 Definition abortT r X (M : monad) A : contT r M A := fun _ : A -> M r => Ret X.
 Arguments abortT {r} _ {M} {A}.
@@ -704,6 +706,10 @@ Program Definition get_aop S : aoperation (StateOps.get_fun S) (ModelMonad.State
 Lemma algebraic_put S : algebraicity (@StateOps.put_op S).
 Proof. by move=> ? ? ? []. Qed.
 
+Program Definition put_aop S : aoperation (StateOps.put_fun S) (ModelMonad.State.t S) :=
+  AOperation.Pack ((*AOperation.Class _*) (AOperation.Mixin (@algebraic_put S))).
+(*Next Obligation. by []. Qed.*)
+
 Lemma algebraicity_callcc r : algebraicity (ContOps.acallcc_op r).
 Proof. by []. Qed.
 
@@ -822,28 +828,21 @@ rewrite boolp.funeqE.
 move=> Y.
 rewrite /=.
 rewrite /psi_g /=.
-rewrite /ntcomp /=.
 rewrite /phi_g /=.
 rewrite (_ : (E # Ret) ((E # e X) Y) = (E # (M # e X)) ((E # Ret) Y)); last first.
-  rewrite -(compE (E # Ret)).
-  rewrite -functor_o.
-  rewrite -(compE (E # (_ # _))).
-  rewrite -functor_o.
-  congr (_ Y).
-  congr (E # _).
+  rewrite -[in LHS]compE -functor_o.
+  rewrite -[in RHS]compE -functor_o.
   rewrite (natural RET).
   by rewrite FIdf.
-rewrite (_ : AOperation.m op (Monad.m N X) ((E # (M # e X)) ((E # Ret) Y)) =
-             (M # e X) (AOperation.m op (Monad.m M X) ((E # Ret) Y))); last first.
+rewrite (_ : op (N X) ((E # (M # e X)) ((E # Ret) Y)) =
+             (M # e X) (op (M X) ((E # Ret) Y))); last first.
   rewrite -(compE (M # e X)).
   by rewrite (natural op).
-set tmp := (op _ _ in RHS).
-transitivity (e X (Join tmp)); last first.
+transitivity (e X (Join (op (M X) ((E # Ret) Y) : M (M X)))); last first.
   rewrite joinE monadMbind.
   rewrite bindE.
   rewrite -(compE _ (M # e X)).
   by rewrite -(natural_monadM e).
-rewrite {}/tmp.
 congr (e X _).
 rewrite -[in LHS](phiK op).
 rewrite -(compE Join).
@@ -902,3 +901,81 @@ Proof. by rewrite /lift_acallccS aliftingE. Qed.
 End continuation_stateT.
 
 End examples_of_lifting.
+
+Section examples_of_programs.
+
+Lemma stateMonad_of_stateT S (M : monad) : MonadState.class_of S (stateT S M).
+Proof.
+refine (@MonadState.Class _ _ _ (@MonadState.Mixin _ (stateT S M) (fun s => Ret (s, s)) (fun s' _ => Ret (tt, s')) _ _ _ _)).
+move=> s s'.
+rewrite boolp.funeqE => s0.
+case: M => m [[f fi fo] [/= r j a b c]].
+rewrite /Bind /Join /JOIN /estateMonadM /Monad_of_ret_bind /bindS /Fun /=.
+rewrite /Monad_of_ret_bind.Map bindretf /=.
+by rewrite /retS bindretf.
+move=> s.
+rewrite boolp.funeqE => s0.
+case: M => m [[f fi fo] [/= r j a b c]].
+rewrite /retS /Ret /RET /Bind /estateMonadM /Monad_of_ret_bind /Fun /bindS /=.
+rewrite /Monad_of_ret_bind.Map.
+by rewrite 4!bindretf /=.
+rewrite boolp.funeqE => s.
+case: M => m [[f fi fo] [/= r j a b c]].
+rewrite /Bind /Join /JOIN /=.
+rewrite /estateMonadM /Monad_of_ret_bind /bindS /Fun /=.
+rewrite /Monad_of_ret_bind.Map bindretf /=.
+by rewrite /retS bindretf.
+case: M => m [[f fi fo] [/= r j a b c]].
+move=> A k.
+rewrite boolp.funeqE => s.
+rewrite /Bind /Join /JOIN /= /bindS /estateMonadM /=.
+rewrite /Monad_of_ret_bind /Fun /Monad_of_ret_bind.Map /=.
+rewrite /Monad_of_ret_bind.Map /= /bindS /=.
+by rewrite !bindretf /= !bindretf.
+Qed.
+
+Canonical stateMonad_of_stateT' S M := MonadState.Pack (stateMonad_of_stateT S M).
+
+Variable M : failMonad.
+Let N := stateT nat M.
+Let incr : N unit := Get >>= (Put \o (fun i => i.+1)).
+Let prog := incr >> (liftS Fail : N nat) >> incr.
+
+End examples_of_programs.
+
+Section examples_of_programs2.
+
+Let M := ModelState.state nat.
+Definition optionT := errorT unit M.
+Definition liftOpt := liftX unit.
+
+Lemma failMonad_of_ : MonadFail.class_of optionT.
+Proof.
+refine (@MonadFail.Class _ _ (@MonadFail.Mixin optionT (fun B => Ret (@inl _ B tt))  _ )).
+by [].
+Qed.
+
+Canonical failMonad_of_' := MonadFail.Pack failMonad_of_.
+
+Definition GetO := liftOpt (@Get nat M).
+Definition PutO := (fun s => liftOpt (@Put nat M s)).
+Let incr := GetO >>= (fun i => PutO (i.+1)).
+Let prog := incr >> (Fail : optionT nat) >> incr.
+
+End examples_of_programs2.
+
+Section lifting_uniform.
+
+Let M S : monad := ModelState.state S.
+Let optT : monadT := errorT unit.
+
+Definition lift_getX S : (StateOps.get_fun S) \O (optT (M S)) ~~> (optT (M S)) :=
+  alifting (get_aop S) (LiftT optT (M S)).
+
+Let lift_putX S : (StateOps.put_fun S) \O (optT (M S)) ~~> (optT (M S)) :=
+  alifting (put_aop S) (LiftT optT (M S)).
+
+Let incr : optT (M nat) unit := (lift_getX Ret) >>= (fun i => lift_putX (i.+1, Ret tt)).
+Let prog : optT (M nat) unit := incr >> (Fail : optT (M nat) unit) >> incr.
+
+End lifting_uniform.
